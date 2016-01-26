@@ -1,0 +1,7 @@
+indexedtarfile
+==============
+
+- Pure python.
+- `tarfile` compatible.
+- Indexed entries for fast random access.
+- Compatible with python 3.4, 3.5
