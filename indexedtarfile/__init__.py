@@ -12,11 +12,21 @@ class IndexedTarFile:
         try:
             self._idx = shelve.open(
                 self._idx_filename,
-                flag='r' if mode == 'r' else 'c')
+                flag='r' if mode.startswith('r') else 'c')
         except:
             raise IOError("Cannot open index file.")
 
         self.tarfile = tarfile.open(filename, mode=mode)
+
+    def close(self):
+        try:
+            self.tarfile.close()
+        except:
+            raise
+        finally:
+            self._idx.close()
+
+        self.closed = True
 
     @classmethod
     def create_index(cls, filename):
@@ -34,6 +44,7 @@ class IndexedTarFile:
 
     def readfile(self, filename):
         tarinfo = self._idx[filename]
+        tarinfo.tarfile = self.tarfile
         sparse = getattr(tarinfo, 'sparse', None)
         if sparse is not None:
             parts = []
@@ -58,3 +69,47 @@ class IndexedTarFile:
             return FileView(self.tarfile.fileobj,
                             tarinfo.offset_data,
                             tarinfo.size)
+
+    def addfile(self, filename, arcname=None):
+        if arcname == None:
+            arcname = filename
+
+        tarinfo = self.tarfile.gettarinfo(filename, arcname)
+
+        if not tarinfo.isreg():
+            raise ValueError("Must be a file.")
+
+        with open(filename, 'rb') as f:
+            self.tarfile.addfile(tarinfo, f)
+            size = f.tell()
+
+        # Populate the offset_data field.
+        tarinfo.offset_data = self.tarfile.fileobj.tell() - size
+
+        # Tarfile is non serializable
+        tarinfo.tarfile = None
+
+        self._idx[tarinfo.name] = tarinfo
+
+
+    def addfilelike(self, fileobj, arcname):
+        tarinfo = tarfile.TarInfo()
+
+        tarinfo.name = arcname
+        tarinfo.path = arcname
+
+        # Get the file size
+        fileobj.seek(0, 2)
+        size = fileobj.tell()
+        fileobj.seek(0)
+        tarinfo.size = size
+
+        self.tarfile.addfile(tarinfo, fileobj)
+
+        # Populate the offset_data field.
+        tarinfo.offset_data = self.tarfile.fileobj.tell() - size
+
+        # Tarfile is non serializable
+        tarinfo.tarfile = None
+
+        self._idx[tarinfo.name] = tarinfo

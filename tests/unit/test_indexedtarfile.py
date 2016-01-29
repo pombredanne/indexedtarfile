@@ -165,3 +165,55 @@ def test_IndexedTarFile_readfile_sparse():
     assert f.read(3) == b'2MB'
     assert f.read(1024**2) == b'\x00' * 1024**2
     assert f.read(1) == b''
+
+
+def test_IndexedTarFile_addfile():
+    from indexedtarfile import IndexedTarFile
+
+    try:
+        filename = tempfile.mktemp()
+        itf = IndexedTarFile(filename, mode='w')
+        with tempfile.NamedTemporaryFile() as f:
+            buf = os.urandom(1024)
+            f.write(buf)
+            f.flush()
+            itf.addfile(f.name, arcname='TEST')
+
+        itf.close()
+
+        itf = IndexedTarFile(filename, mode='r')
+        assert 'TEST' in itf._idx
+        assert itf.readfile('TEST').read() == buf
+    finally:
+        try:
+            os.unlink(filename + '.idx')
+            os.unlink(filename)
+        except:
+            pass
+
+
+def test_IndexedTarFile_addfilelike():
+    from indexedtarfile import IndexedTarFile
+    from io import BytesIO
+
+    try:
+        filename = tempfile.mktemp()
+        itf = IndexedTarFile(filename, mode='w')
+        buf = os.urandom(1024)
+
+        fileobj = BytesIO(buf)
+        fileobj.write(buf)
+        fileobj.seek(0)
+
+        itf.addfilelike(fileobj, 'TEST')
+        itf.close()
+
+        itf = IndexedTarFile(filename, mode='r')
+        assert 'TEST' in itf._idx
+        assert itf.readfile('TEST').read() == buf
+    finally:
+        try:
+            os.unlink(filename + '.idx')
+            os.unlink(filename)
+        except:
+            pass
