@@ -17,22 +17,35 @@ class IndexedTarFile:
             raise IOError("Cannot open index file.")
 
         self.tarfile = tarfile.open(filename, mode=mode)
+        self.closed = False
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
 
     def close(self):
+        if closed:
+            return
+
         try:
             self.tarfile.close()
         except:
             raise
         finally:
-            self._idx.close()
-
-        self.closed = True
+            try:
+                self._idx.close()
+            except:
+                raise
+            finally:
+                self.closed = True
 
     @classmethod
-    def create_index(cls, filename):
+    def create_index(cls, filename, mode='r'):
         idx = shelve.open(cls.idxfilename(filename), flag='n')
         try:
-            with tarfile.open(filename, mode='r') as tar:
+            with tarfile.open(filename, mode=mode) as tar:
                 for tarinfo in tar.getmembers():
                     idx[tarinfo.name] = tarinfo.offset
         finally:
@@ -110,7 +123,7 @@ class IndexedTarFile:
         fileobj.seek(0)
         tarinfo.size = size
 
-        # Sets additional data
+        # Set additional data
         for key, value in kwargs:
             setattr(tarinfo, key, value)
 

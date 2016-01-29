@@ -1,4 +1,6 @@
 import os
+import random
+from glob import glob
 import tempfile
 
 import pytest
@@ -217,3 +219,101 @@ def test_IndexedTarFile_addfilelike():
             os.unlink(filename)
         except:
             pass
+
+
+def test_IndexedTarFile_multiple_appends():
+    from indexedtarfile import IndexedTarFile
+    from io import BytesIO
+
+    f1 = BytesIO(os.urandom(random.randint(128, 2048)))
+    f2 = BytesIO(os.urandom(random.randint(128, 2048)))
+    f3 = BytesIO(os.urandom(random.randint(128, 2048)))
+
+    try:
+        filename = tempfile.mktemp()
+        for idx, f in enumerate([f1, f2, f3], 1):
+            itf = IndexedTarFile(filename, mode="a")
+            itf.addfilelike(f, 'TEST%s' % idx)
+            itf.close()
+
+        f1.seek(0)
+        f2.seek(0)
+        f3.seek(0)
+
+        itf = IndexedTarFile(filename, mode='r')
+
+        assert itf.readfile('TEST1').read() == f1.read()
+        assert itf.readfile('TEST2').read() == f2.read()
+        assert itf.readfile('TEST3').read() == f3.read()
+
+        itf.close()
+
+    finally:
+        try:
+            for fname in glob(filename + '*'):
+                os.unlink(fname)
+        except:
+            raise
+
+
+@pytest.mark.parametrize("mode", ["w", "w:gz", "w:bz2", "w:xz"])
+def test_IndexedTarFile_multiple_appends(mode):
+    from indexedtarfile import IndexedTarFile
+    from io import BytesIO
+
+    f1 = BytesIO(os.urandom(random.randint(128, 2048)))
+    f2 = BytesIO(os.urandom(random.randint(128, 2048)))
+    f3 = BytesIO(os.urandom(random.randint(128, 2048)))
+
+    try:
+        filename = tempfile.mktemp()
+        itf = IndexedTarFile(filename, mode=mode)
+        for idx, f in enumerate([f1, f2, f3], 1):
+            itf.addfilelike(f, 'TEST%s' % idx)
+        itf.close()
+
+        f1.seek(0)
+        f2.seek(0)
+        f3.seek(0)
+
+        itf = IndexedTarFile(filename, mode='r' + mode[1:])
+
+        assert itf.readfile('TEST1').read() == f1.read()
+        assert itf.readfile('TEST2').read() == f2.read()
+        assert itf.readfile('TEST3').read() == f3.read()
+
+        itf.close()
+
+    finally:
+        try:
+            for fname in glob(filename + '*'):
+                os.unlink(fname)
+        except:
+            raise
+
+
+def test_IndexedTarFile_contextmanager():
+    from indexedtarfile import IndexedTarFile
+    from io import BytesIO
+
+    try:
+        filename = tempfile.mktemp()
+
+        f = None
+
+        with IndexedTarFile(filename, 'w') as f:
+            f.addfilelike(BytesIO(b'TEST'), 'TEST')
+            assert not f.closed
+        assert f.closed
+
+        with IndexedTarFile(filename, 'r') as f:
+            assert f.readfile('TEST').read() == b'TEST'
+            assert not f.closed
+        assert f.closed
+
+    finally:
+        try:
+            for fname in glob(filename + '*'):
+                os.unlink(fname)
+        except:
+            raise
