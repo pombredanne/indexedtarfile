@@ -34,7 +34,7 @@ class IndexedTarFile:
         try:
             with tarfile.open(filename, mode='r') as tar:
                 for tarinfo in tar.getmembers():
-                    idx[tarinfo.name] = tarinfo
+                    idx[tarinfo.name] = tarinfo.offset
         finally:
             idx.close()
 
@@ -42,9 +42,19 @@ class IndexedTarFile:
     def idxfilename(filename):
         return filename + '.idx'
 
+    def gettarinfo(self, filename):
+        # Get the offset from the index
+        offset = self._idx[filename]
+
+        # Get the tarinfo object from the tar
+        self.tarfile.fileobj.seek(offset)
+
+        return tarfile.TarInfo.fromtarfile(self.tarfile)
+
     def readfile(self, filename):
-        tarinfo = self._idx[filename]
-        tarinfo.tarfile = self.tarfile
+
+        tarinfo = self.gettarinfo(filename)
+
         sparse = getattr(tarinfo, 'sparse', None)
         if sparse is not None:
             parts = []
@@ -79,20 +89,16 @@ class IndexedTarFile:
         if not tarinfo.isreg():
             raise ValueError("Must be a file.")
 
-        with open(filename, 'rb') as f:
-            self.tarfile.addfile(tarinfo, f)
-            size = f.tell()
+        try:
+            offset = self.tarfile.fileobj.tell()
+            with open(filename, 'rb') as f:
+                self.tarfile.addfile(tarinfo, f)
+        except:
+            raise
+        else:
+            self._idx[tarinfo.name] = offset
 
-        # Populate the offset_data field.
-        tarinfo.offset_data = self.tarfile.fileobj.tell() - size
-
-        # Tarfile is non serializable
-        tarinfo.tarfile = None
-
-        self._idx[tarinfo.name] = tarinfo
-
-
-    def addfilelike(self, fileobj, arcname):
+    def addfilelike(self, fileobj, arcname, **kwargs):
         tarinfo = tarfile.TarInfo()
 
         tarinfo.name = arcname
@@ -104,12 +110,15 @@ class IndexedTarFile:
         fileobj.seek(0)
         tarinfo.size = size
 
-        self.tarfile.addfile(tarinfo, fileobj)
+        # Sets additional data
+        for key, value in kwargs:
+            setattr(tarinfo, key, value)
 
-        # Populate the offset_data field.
-        tarinfo.offset_data = self.tarfile.fileobj.tell() - size
-
-        # Tarfile is non serializable
-        tarinfo.tarfile = None
-
-        self._idx[tarinfo.name] = tarinfo
+        try:
+            offset = self.tarfile.fileobj.tell()
+            self.tarfile.addfile(tarinfo, fileobj)
+        except:
+            raise
+        else:
+            # On success update the index
+            self._idx[tarinfo.name] = offset

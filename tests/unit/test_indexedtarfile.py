@@ -98,9 +98,10 @@ def test_IndexedTarFile_create_index():
 
         real_members = tar.getmembers()
 
-        s = shelve.open(filename + '.idx', flag='r')
-        index_members = list(s.values())
-        s.close()
+        itf = IndexedTarFile(filename, mode='r')
+        index_members = []
+        for name in itf._idx.keys():
+            index_members.append(itf.gettarinfo(name))
 
         real_members_attrs = members_to_set(real_members)
         index_members_attrs = members_to_set(index_members)
@@ -156,7 +157,6 @@ def test_IndexedTarFile_readfile_sparse():
     IndexedTarFile.create_index(FIXTURE)
 
     itf = IndexedTarFile(FIXTURE, 'r')
-    assert getattr(itf._idx['sparse'], 'sparse', None)
     f = itf.readfile('sparse')
 
     assert f.read(1024**2) == b'\x00' * 1024**2
