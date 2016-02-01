@@ -8,6 +8,7 @@ from indexedtarfile.fileview import FileView
 
 class IndexedTarFile:
     def __init__(self, filename, mode='r'):
+        self.closed = False
         self._idx_filename = self.idxfilename(filename)
         try:
             self._idx = shelve.open(
@@ -17,7 +18,6 @@ class IndexedTarFile:
             raise IOError("Cannot open index file.")
 
         self.tarfile = tarfile.open(filename, mode=mode)
-        self.closed = False
 
     def __enter__(self):
         return self
@@ -26,7 +26,7 @@ class IndexedTarFile:
         self.close()
 
     def close(self):
-        if closed:
+        if self.closed:
             return
 
         try:
