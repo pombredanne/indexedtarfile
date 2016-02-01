@@ -1,0 +1,9 @@
+CHANGES
+=======
+
+* Context manager support and compressed test
+* Storing tarinfo offsets instead of tarinfo object in the index
+* Add file and filelike objects
+* Project changes
+* pbr, tox and basic test
+* Initial commit
