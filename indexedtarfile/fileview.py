@@ -1,5 +1,6 @@
 class FileView:
     def __init__(self, file, offset, size):
+        self.closed = file.closed
         self.file = file
         self.offset = offset
         self.size = size
@@ -35,3 +36,11 @@ class FileView:
         finally:
             self._pos += len(readed)
             self.file.seek(basepos)
+
+    def close(self):
+        try:
+            self.file.close() 
+        except:
+            pass
+        finally:
+            self.closed = self.file.closed
